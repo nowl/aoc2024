@@ -37,3 +37,10 @@ pub struct Args {
     #[arg(short, long)]
     pub file: Option<PathBuf>,
 }
+
+#[macro_export]
+macro_rules! dp {
+    ($x:ident) => {
+        debug_println!("{:?}", $x);
+    };
+}
