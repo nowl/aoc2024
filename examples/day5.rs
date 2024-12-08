@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::{fs, path::Path};
 
 use anyhow::Error;
@@ -7,7 +7,6 @@ use aoc2024::{dp, Args};
 use character::streaming::multispace0;
 use clap::Parser;
 use debug_print::debug_println;
-use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use nom::{
     branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*, *,
@@ -130,6 +129,28 @@ fn main() -> Result<(), Error> {
                 result += update[update.len() / 2];
             } else {
                 result += (update[update.len() / 2] + update[update.len() / 2 - 1]) / 2;
+            }
+        }
+    }
+
+    println!("{result}");
+
+    // part 2
+
+    let mut result = 0;
+    for update in data.updates.iter() {
+        let update_sorted = {
+            let mut sorted = update.clone();
+            sorted.sort_by(&sort_func);
+            sorted
+        };
+        if &update_sorted != update {
+            if update.len() % 2 == 1 {
+                result += update_sorted[update.len() / 2];
+            } else {
+                result += (update_sorted[update.len() / 2]
+                    + update_sorted[update_sorted.len() / 2 - 1])
+                    / 2;
             }
         }
     }
