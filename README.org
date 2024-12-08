@@ -1,0 +1,15 @@
+* Advent of Code 2024
+Another fun year of [[https://adventofcode.com/][Advent of Code]]!
+
+Chose Rust this year again. Also working at a much more leisurely
+pace this year instead of trying to stay up to date.
+
+Run a day with example
+#+begin_src bash
+cargo run --release --example day3
+#+end_src
+
+Or with actual input (saved in data/ folder)
+#+begin_src bash
+cargo run --release --example day3 -- -f data/day3
+#+end_src
