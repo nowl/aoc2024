@@ -63,6 +63,12 @@ fn test_line((target, nums): &(i64, Vec<i64>)) -> bool {
         } else {
             let next_num = others[0];
             let others = others.iter().skip(1).cloned().collect_vec();
+            let concat = {
+                let mut s = this_target.to_string();
+                s.push_str(&next_num.to_string());
+                s.parse().unwrap()
+            };
+            queue.push_back((concat, others.clone()));
             queue.push_back((this_target * next_num, others.clone()));
             queue.push_back((this_target + next_num, others));
         }
