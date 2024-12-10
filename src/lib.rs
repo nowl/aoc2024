@@ -14,7 +14,7 @@ pub fn read_as_lines(path: &Path) -> io::Result<Vec<String>> {
 
     let mut lines = buf.split("\n").map(|s| s.to_owned()).collect::<Vec<_>>();
 
-    if lines.last().map_or(false, |v| v == "") {
+    if lines.last().map_or(false, |v| v.is_empty()) {
         lines.remove(lines.len() - 1);
     }
 
@@ -41,6 +41,6 @@ pub struct Args {
 #[macro_export]
 macro_rules! dp {
     ($x:ident) => {
-        debug_println!("{:?}", $x);
+        debug_println!("{} = {:?}", stringify!($x), $x);
     };
 }

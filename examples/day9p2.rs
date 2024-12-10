@@ -55,20 +55,30 @@ impl From<Data> for BlockVector {
 }
 
 impl BlockVector {
-    fn find_last_file(&self) -> Option<usize> {
-        self.data.iter().enumerate().rev().find_map(|(n, x)| {
-            if matches!(*x, BlockType::File(..)) {
-                Some(n)
-            } else {
-                None
-            }
+    fn find_last_file_num(&self) -> Option<usize> {
+        self.data.iter().rev().find_map(|x| match *x {
+            BlockType::File(file_num, _) => Some(file_num),
+            BlockType::Empty(..) => None,
         })
     }
 
-    fn find_first_gap(&self) -> Option<usize> {
-        self.data
-            .iter()
-            .position(|x| matches!(*x, BlockType::Empty(..)))
+    fn find_file_num(&self, fnum: usize) -> Option<usize> {
+        self.data.iter().position(|blk| match *blk {
+            BlockType::File(file_num, _) => file_num == fnum,
+            BlockType::Empty(..) => false,
+        })
+    }
+
+    fn find_first_largest_gap_for(&self, fidx: usize) -> Option<usize> {
+        let file = self.data.get(fidx).unwrap();
+        let BlockType::File(_, file_size) = *file else {
+            unreachable!()
+        };
+
+        self.data.iter().position(|blk| match *blk {
+            BlockType::File(..) => false,
+            BlockType::Empty(free_size) => free_size >= file_size,
+        })
     }
 
     fn fill_gap_from_file(&mut self, gidx: usize, fidx: usize) {
@@ -88,22 +98,36 @@ impl BlockVector {
             };
             *new_gap_size = gap_size - file_size;
 
-            let file = self.data.remove(fidx);
-            self.data.insert(gidx, file);
+            self.data.insert(gidx, BlockType::File(file_num, file_size));
+
+            let old_file = self.data.get_mut(fidx + 1).unwrap();
+            *old_file = BlockType::Empty(file_size);
         } else if gap_size == file_size {
             self.data.swap(gidx, fidx);
-            self.data.swap_remove(fidx);
-        } else {
-            // file_size > gap_size
-            let BlockType::File(_, new_file_size) = self.data.get_mut(fidx).unwrap() else {
-                unreachable!()
-            };
-            *new_file_size = file_size - gap_size;
-
-            let old_gap = self.data.get_mut(gidx).unwrap();
-            *old_gap = BlockType::File(file_num, gap_size);
         }
     }
+
+    //fn compact_empty_blocks(self) -> Self {
+    //    let compacted = self
+    //        .data
+    //        .into_iter()
+    //        .fold(Vec::new(), |mut acc, blk| match blk {
+    //            BlockType::File(..) => {
+    //                acc.push(blk);
+    //                acc
+    //            }
+    //            BlockType::Empty(blk_size) => {
+    //                if let Some(last_blk) = acc.last_mut() {
+    //                    if last_blk
+    //                } else {
+    //                    acc.push(blk);
+    //                }
+    //                acc
+    //            }
+    //        });
+
+    //    Self { data: compacted }
+    //}
 
     fn checksum(&self) -> u64 {
         let fold = self
@@ -117,7 +141,7 @@ impl BlockVector {
                     }
                     (new_acc, n + size)
                 }
-                BlockType::Empty(_) => (acc, n),
+                BlockType::Empty(size) => (acc, n + size),
             });
 
         fold.0
@@ -145,18 +169,25 @@ fn main() -> Result<(), Error> {
     let mut blockdata: BlockVector = data.into();
     dp!(blockdata);
 
-    loop {
-        let file_idx = blockdata.find_last_file();
-        let gap_idx = blockdata.find_first_gap();
+    let last_file_num = blockdata.find_last_file_num().unwrap();
+    dp!(last_file_num);
 
-        let Some(fidx) = file_idx else { break };
-        let Some(gidx) = gap_idx else { break };
+    for n in (0..=last_file_num).rev() {
+        //blockdata = blockdata.compact_empty_blocks();
 
+        dp!(n);
+        let fidx = blockdata.find_file_num(n).unwrap();
+        let gap_idx = blockdata.find_first_largest_gap_for(fidx);
+
+        let Some(gidx) = gap_idx else { continue };
         if gidx > fidx {
-            break;
-        };
+            continue;
+        }
 
         blockdata.fill_gap_from_file(gidx, fidx);
+        dp!(blockdata);
+
+        //read_line()?;
     }
 
     dp!(blockdata);
