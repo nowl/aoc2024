@@ -127,5 +127,28 @@ fn main() -> Result<(), Error> {
 
     println!("{count}");
 
+    // part 2
+
+    let mut count = 0;
+    let trailheads = data.find_trailheads();
+    for trailhead in trailheads {
+        dp!(trailhead);
+
+        let mut queue = VecDeque::new();
+        queue.push_back((trailhead.clone(), 1));
+
+        while let Some((pos, next)) = queue.pop_front() {
+            for adj in data.adjacent_to(pos, |v| v == next) {
+                if next == 9 {
+                    count += 1;
+                } else {
+                    queue.push_back((adj, next + 1));
+                }
+            }
+        }
+    }
+
+    println!("{count}");
+
     Ok(())
 }
