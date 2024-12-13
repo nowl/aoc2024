@@ -174,6 +174,67 @@ fn calculate_cost(regions: &HashMap<String, Vec<(i32, i32)>>, data: &Data) -> u6
     total_cost
 }
 
+// this is pretty inefficient but did work to solve the problem
+fn calculate_cost_by_edge(regions: &HashMap<String, Vec<(i32, i32)>>, data: &Data) -> u64 {
+    let mut total_cost = 0;
+    for (name, region) in regions.iter() {
+        let mut edge_count = 0;
+        // do N, S, E, W separately
+        for (dr, dc) in [(0, 1), (0, -1), (1, 0), (-1, 0)] {
+            let mut perimeter_tiles = HashSet::new();
+            for pos in region.iter() {
+                macro_rules! add_perimeter_tile {
+                    ($dr:expr, $dc:expr) => {{
+                        let pos = (pos.0 + $dr, pos.1 + $dc);
+                        if !region.contains(&pos) || data.data.get(&pos).is_none() {
+                            perimeter_tiles.insert(pos);
+                        }
+                    }};
+                }
+                add_perimeter_tile!(dr, dc);
+            }
+
+            // group perimeter tiles by adjacencies, can reuse existing code above for this
+            let perimeter_region = {
+                let mut map = HashMap::new();
+                for c in 0..data.width + 2 {
+                    for r in 0..data.height + 2 {
+                        let ci = c as i32;
+                        let ri = r as i32;
+                        let region_char = if perimeter_tiles.contains(&(ri - 1, ci - 1)) {
+                            'A'
+                        } else {
+                            'O'
+                        };
+                        map.insert((ri, ci), region_char);
+                    }
+                }
+                Data {
+                    data: map,
+                    width: data.width + 2,
+                    height: data.height + 2,
+                }
+            };
+
+            let perimeter_regions = identify_regions(&perimeter_region);
+
+            // find those regions starting with 'A'
+            let perimeter = perimeter_regions
+                .keys()
+                .filter(|k| k.starts_with('A'))
+                .count();
+            edge_count += perimeter;
+        }
+
+        let area = region.len();
+        total_cost += edge_count as u64 * area as u64;
+        dp!(name);
+        dp!(area);
+    }
+
+    total_cost
+}
+
 fn main() -> Result<(), Error> {
     let data = read_data()?;
 
@@ -184,6 +245,10 @@ fn main() -> Result<(), Error> {
     dp!(regions);
 
     let result = calculate_cost(&regions, &data);
+
+    println!("{result}");
+
+    let result = calculate_cost_by_edge(&regions, &data);
 
     println!("{result}");
 
