@@ -1,6 +1,6 @@
 use anyhow::Error;
 use aoc2024::{
-    dijkstra::{DijkstraConfig, DijkstraInput, DijkstraMap, DijkstraMapAll},
+    dijkstra::{DijkstraConfig, DijkstraInput, DijkstraMap},
     dp, Args,
 };
 use character::complete::{multispace0, one_of};
@@ -186,16 +186,19 @@ fn main() -> Result<(), Error> {
         .min_by_key(|e| e.0)
         .unwrap();
 
+    //let path = DijkstraMap::<Data, (_, _)>::extract_path(&start.1, &cost.1, &costs);
+    //println!("{:?}", path);
+
     println!("{:?}", cost.0);
 
     // all best path Dijkstra
 
-    let mut dmap = DijkstraMapAll::new(&data, DijkstraConfig { print_1000: true });
+    let mut dmap = DijkstraMap::new(&data, DijkstraConfig { print_1000: true });
 
     let start = (0, (data.start, Facing::E));
     let costs = dmap.run(start);
 
-    let paths = DijkstraMapAll::<Data>::extract_path_from(&start.1, &cost.1, &costs);
+    let paths = DijkstraMap::<Data, Vec<_>>::extract_all_paths(&start.1, &cost.1, &costs);
 
     let mut set = HashSet::new();
 
