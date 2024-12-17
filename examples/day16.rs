@@ -1,6 +1,6 @@
 use anyhow::Error;
 use aoc2024::{
-    dijkstra::{DijkstraConfig, DijkstraInput, DijkstraMap},
+    dijkstra::{DijkstraConfig, DijkstraInput, DijkstraMap, DijkstraMapAll},
     dp, Args,
 };
 use character::complete::{multispace0, one_of};
@@ -9,7 +9,11 @@ use debug_print::debug_println;
 use multi::many1;
 use nom::*;
 use sequence::terminated;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 const TEST_INPUT: &str = "###############
 #.......#....E#
@@ -180,10 +184,28 @@ fn main() -> Result<(), Error> {
         .filter(|(k, _)| k.0 == data.end)
         .map(|e| e.1)
         .min_by_key(|e| e.0)
-        .unwrap()
-        .0;
+        .unwrap();
 
-    println!("{cost:?}");
+    println!("{:?}", cost.0);
+
+    // all best path Dijkstra
+
+    let mut dmap = DijkstraMapAll::new(&data, DijkstraConfig { print_1000: true });
+
+    let start = (0, (data.start, Facing::E));
+    let costs = dmap.run(start);
+
+    let paths = DijkstraMapAll::<Data>::extract_path_from(&start.1, &cost.1, &costs);
+
+    let mut set = HashSet::new();
+
+    for path in paths {
+        for (pos, _) in path {
+            set.insert(pos);
+        }
+    }
+
+    println!("{}", set.len() + 1);
 
     Ok(())
 }
