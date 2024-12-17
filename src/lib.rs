@@ -4,6 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod dijkstra;
+
 use clap::Parser;
 
 pub fn read_as_lines(path: &Path) -> io::Result<Vec<String>> {
