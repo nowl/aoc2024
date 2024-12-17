@@ -54,7 +54,7 @@ struct Data {
     end: (i32, i32),
 }
 
-fn parse_data(i: &str, width: usize, height: usize) -> IResult<&str, Data> {
+fn parse_data(i: &str) -> IResult<&str, Data> {
     use Tile::*;
 
     let parse_val = one_of(".#SE");
@@ -106,17 +106,12 @@ fn parse_data(i: &str, width: usize, height: usize) -> IResult<&str, Data> {
 fn read_data() -> Result<Data, Error> {
     let args = Args::parse();
 
-    let mut width = 11;
-    let mut height = 7;
-
     let contents = args.file.map_or(Ok(TEST_INPUT.to_string()), |input| {
-        width = 101;
-        height = 103;
         let file = Path::new(&input);
         fs::read_to_string(file)
     })?;
 
-    let data = parse_data(&contents, width, height);
+    let data = parse_data(&contents);
     let data = data.map_err(|err| err.map_input(|s| s.to_string()))?;
     assert!(data.0.is_empty());
     Ok(data.1)
