@@ -193,4 +193,34 @@ where
     ) -> Vec<Vec<T::Index>> {
         Self::extract_all_paths_aux(start, end, data, vec![end.clone()])
     }
+
+    pub fn count_all_paths_aux(
+        start: &T::Index,
+        end: &T::Index,
+        data: &HashMap<T::Index, (T::Cost, Vec<T::Index>)>,
+        memoized_count: &mut HashMap<(T::Index, T::Index), u64>,
+    ) -> u64 {
+        let mut count = 0;
+        if start == end {
+            count = 1;
+        } else if let Some(val) = memoized_count.get(&(*start, *end)) {
+            count += val;
+        } else {
+            let pre_ends = data.get(end).unwrap();
+            for pre_end in pre_ends.1.iter() {
+                count += Self::count_all_paths_aux(start, pre_end, data, memoized_count);
+                memoized_count.insert((*start, *end), count);
+            }
+        }
+        count
+    }
+
+    pub fn count_all_paths(
+        start: &T::Index,
+        end: &T::Index,
+        data: &HashMap<T::Index, (T::Cost, Vec<T::Index>)>,
+    ) -> u64 {
+        let mut memo = HashMap::new();
+        Self::count_all_paths_aux(start, end, data, &mut memo)
+    }
 }
