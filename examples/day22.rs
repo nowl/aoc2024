@@ -4,14 +4,24 @@ use character::complete::{digit1, multispace0};
 use clap::Parser;
 use combinator::map_res;
 use debug_print::debug_println;
+use itertools::Itertools;
 use multi::many1;
 use nom::*;
 use sequence::terminated;
-use std::{fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
-const TEST_INPUT: &str = "1
+const TEST_INPUT1: &str = "1
 10
 100
+2024";
+
+const TEST_INPUT: &str = "1
+2
+3
 2024";
 
 #[derive(Debug)]
@@ -55,9 +65,12 @@ fn main() -> Result<(), Error> {
 
     dp!(data);
 
+    // part 1
+
     let score = data
         .data
-        .into_iter()
+        .iter()
+        .cloned()
         .map(|mut secret| {
             for _n in 0..2000 {
                 secret = iterate(secret);
@@ -68,6 +81,54 @@ fn main() -> Result<(), Error> {
         .sum::<u64>();
 
     println!("{score}");
+
+    // part 2
+
+    // build diff map
+    let diffs = data
+        .data
+        .into_iter()
+        .map(|mut secret| {
+            let single_digits = (0..2000)
+                .into_iter()
+                .fold(vec![secret], |mut acc, _n| {
+                    secret = iterate(secret);
+                    acc.push(secret);
+                    acc
+                })
+                .into_iter()
+                .map(|v| v % 10)
+                .collect_vec();
+
+            let mut diffs = HashMap::new();
+
+            single_digits
+                .windows(5)
+                .map(|v| ((v[1] - v[0], v[2] - v[1], v[3] - v[2], v[4] - v[3]), v[4]))
+                .for_each(|(key, v)| {
+                    diffs.entry(key).or_insert(v);
+                });
+
+            diffs
+        })
+        .collect_vec();
+
+    // collect all sequences
+    let sequences: HashSet<_> = diffs.iter().flat_map(|x| x.keys()).collect();
+
+    // find best sequence
+    let mut best_sequence: Option<(_, i32)> = None;
+    for sequence in sequences {
+        let winnings = diffs
+            .iter()
+            .fold(0, |acc, v| acc + v.get(sequence).map(|x| *x).unwrap_or(0));
+        if best_sequence.is_none_or(|x| x.1 < winnings) {
+            best_sequence = Some((sequence, winnings));
+            dp!(best_sequence);
+        }
+    }
+
+    println!("{}", best_sequence.unwrap().1);
 
     Ok(())
 }
