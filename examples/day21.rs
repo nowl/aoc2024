@@ -1,15 +1,13 @@
 use anyhow::Error;
-use aoc2024::{
-    dijkstra::{DijkstraConfig, DijkstraInput, DijkstraMap},
-    dp, Args,
-};
+use aoc2024::{dp, Args};
 use character::complete::{alphanumeric1, multispace0};
 use clap::Parser;
 use debug_print::debug_println;
+use itertools::Itertools;
 use multi::many1;
 use nom::*;
 use sequence::terminated;
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 const TEST_INPUT: &str = "029A
 980A
@@ -65,162 +63,264 @@ enum NumericKeypadState {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum RobotKeypadState {
-    RobotSUp,
-    RobotSDown,
-    RobotSLeft,
-    RobotSRight,
-    RobotSA,
+    SU,
+    SD,
+    SL,
+    SR,
+    SA,
 }
 
-struct Machine {}
+// prefer L, D, U, R
+fn moves_keypad(s: NumericKeypadState, d: NumericKeypadState) -> Vec<RobotKeypadState> {
+    match s {
+        NumS0 => match d {
+            NumS0 => vec![],
+            NumS1 => vec![SL, SU],
+            NumS2 => vec![SU],
+            NumS3 => vec![SR, SU],
+            NumS4 => vec![SL, SU, SU],
+            NumS5 => vec![SU, SU],
+            NumS6 => vec![SU, SU, SR],
+            NumS7 => vec![SL, SU, SU, SU],
+            NumS8 => vec![SU, SU, SU],
+            NumS9 => vec![SU, SU, SU, SR],
+            NumSA => vec![SR],
+        },
+        NumS1 => match d {
+            NumS0 => vec![SD, SR],
+            NumS1 => vec![],
+            NumS2 => vec![SR],
+            NumS3 => vec![SR, SR],
+            NumS4 => vec![SU],
+            NumS5 => vec![SU, SR],
+            NumS6 => vec![SU, SR, SR],
+            NumS7 => vec![SU, SU],
+            NumS8 => vec![SU, SU, SR],
+            NumS9 => vec![SU, SU, SR, SR],
+            NumSA => vec![SD, SR, SR],
+        },
+        NumS2 => match d {
+            NumS0 => vec![SD],
+            NumS1 => vec![SL],
+            NumS2 => vec![],
+            NumS3 => vec![SR],
+            NumS4 => vec![SL, SU],
+            NumS5 => vec![SU],
+            NumS6 => vec![SR, SU],
+            NumS7 => vec![SL, SU, SU],
+            NumS8 => vec![SU, SU],
+            NumS9 => vec![SU, SU, SR],
+            NumSA => vec![SD, SR],
+        },
+        NumS3 => match d {
+            NumS0 => vec![SL, SD],
+            NumS1 => vec![SL, SL],
+            NumS2 => vec![SL],
+            NumS3 => vec![],
+            NumS4 => vec![SL, SL, SU],
+            NumS5 => vec![SL, SU],
+            NumS6 => vec![SU],
+            NumS7 => vec![SL, SL, SU, SU],
+            NumS8 => vec![SU, SU, SL],
+            NumS9 => vec![SU, SU],
+            NumSA => vec![SD],
+        },
+        NumS4 => match d {
+            NumS0 => vec![SD, SD, SR],
+            NumS1 => vec![SD],
+            NumS2 => vec![SL, SD],
+            NumS3 => vec![SD, SR, SR],
+            NumS4 => vec![],
+            NumS5 => vec![SR],
+            NumS6 => vec![SR, SR],
+            NumS7 => vec![SU],
+            NumS8 => vec![SU, SR],
+            NumS9 => vec![SU, SR, SR],
+            NumSA => vec![SD, SD, SR, SR],
+        },
+        NumS5 => match d {
+            NumS0 => vec![SD, SD],
+            NumS1 => vec![SD, SL],
+            NumS2 => vec![SD],
+            NumS3 => vec![SD, SR],
+            NumS4 => vec![SL],
+            NumS5 => vec![],
+            NumS6 => vec![SR],
+            NumS7 => vec![SU, SL],
+            NumS8 => vec![SU],
+            NumS9 => vec![SU, SR],
+            NumSA => vec![SD, SD, SR],
+        },
+        NumS6 => match d {
+            NumS0 => vec![SD, SD, SL],
+            NumS1 => vec![SD, SL, SL],
+            NumS2 => vec![SD, SL],
+            NumS3 => vec![SD],
+            NumS4 => vec![SL, SL],
+            NumS5 => vec![SL],
+            NumS6 => vec![],
+            NumS7 => vec![SU, SL, SL],
+            NumS8 => vec![SU, SL],
+            NumS9 => vec![SU],
+            NumSA => vec![SD, SD],
+        },
+        NumS7 => match d {
+            NumS0 => vec![SD, SD, SD, SR],
+            NumS1 => vec![SD, SD],
+            NumS2 => vec![SD, SD, SR],
+            NumS3 => vec![SD, SD, SR, SR],
+            NumS4 => vec![SD],
+            NumS5 => vec![SD, SR],
+            NumS6 => vec![SD, SR, SR],
+            NumS7 => vec![],
+            NumS8 => vec![SR],
+            NumS9 => vec![SR, SR],
+            NumSA => vec![SD, SD, SD, SR, SR],
+        },
+        NumS8 => match d {
+            NumS0 => vec![SD, SD, SD],
+            NumS1 => vec![SL, SD, SD],
+            NumS2 => vec![SD, SD],
+            NumS3 => vec![SD, SD, SR],
+            NumS4 => vec![SL, SD],
+            NumS5 => vec![SD],
+            NumS6 => vec![SD, SR],
+            NumS7 => vec![SL],
+            NumS8 => vec![],
+            NumS9 => vec![SR],
+            NumSA => vec![SD, SD, SD, SR],
+        },
+        NumS9 => match d {
+            NumS0 => vec![SD, SD, SD, SL],
+            NumS1 => vec![SD, SD, SL, SL],
+            NumS2 => vec![SD, SD, SL],
+            NumS3 => vec![SD, SD],
+            NumS4 => vec![SD, SL, SL],
+            NumS5 => vec![SD, SL],
+            NumS6 => vec![SD],
+            NumS7 => vec![SL, SL],
+            NumS8 => vec![SL],
+            NumS9 => vec![],
+            NumSA => vec![SD, SD, SD],
+        },
+        NumSA => match d {
+            NumS0 => vec![SL],
+            NumS1 => vec![SU, SL, SL],
+            NumS2 => vec![SU, SL],
+            NumS3 => vec![SU],
+            NumS4 => vec![SU, SU, SL, SL],
+            NumS5 => vec![SU, SU, SL],
+            NumS6 => vec![SU, SU],
+            NumS7 => vec![SU, SU, SU, SL, SL],
+            NumS8 => vec![SU, SU, SU, SL],
+            NumS9 => vec![SU, SU, SU],
+            NumSA => vec![],
+        },
+    }
+}
+
+// prefer U,D,L,R
+fn moves_robot(s: RobotKeypadState, d: RobotKeypadState) -> Vec<Vec<RobotKeypadState>> {
+    match s {
+        SU => match d {
+            SU => vec![vec![]],
+            SD => vec![vec![SD]],
+            SL => vec![vec![SD, SL]],
+            SR => vec![vec![SD, SR], vec![SR, SD]],
+            SA => vec![vec![SR]],
+        },
+        SD => match d {
+            SU => vec![vec![SU]],
+            SD => vec![vec![]],
+            SL => vec![vec![SL]],
+            SR => vec![vec![SR]],
+            SA => vec![vec![SR, SU], vec![SU, SR]],
+        },
+        SL => match d {
+            SU => vec![vec![SR, SU]],
+            SD => vec![vec![SR]],
+            SL => vec![vec![]],
+            SR => vec![vec![SR, SR]],
+            SA => vec![vec![SR, SR, SU], vec![SR, SU, SR]],
+        },
+        SR => match d {
+            SU => vec![vec![SL, SU], vec![SU, SL]],
+            SD => vec![vec![SL]],
+            SL => vec![vec![SL, SL]],
+            SR => vec![vec![]],
+            SA => vec![vec![SU]],
+        },
+        SA => match d {
+            SU => vec![vec![SL]],
+            SD => vec![vec![SL, SD], vec![SD, SL]],
+            SL => vec![vec![SL, SD, SL], vec![SD, SL, SL]],
+            SR => vec![vec![SD]],
+            SA => vec![vec![]],
+        },
+    }
+}
+
+fn count_moves(
+    cur_level: i32,
+    max_level: i32,
+    path: Vec<RobotKeypadState>,
+    cache: &mut HashMap<(i32, Vec<RobotKeypadState>), u64>,
+) -> u64 {
+    if let Some(count) = cache.get(&(cur_level, path.clone())) {
+        return *count;
+    }
+
+    let all_moves = moves_robot(path[0].clone(), path[path.len() - 1].clone());
+
+    let count = if cur_level == max_level {
+        all_moves[0].len() as u64 + 1
+    } else {
+        let mut best_count = None;
+        for mut moves in all_moves {
+            moves.push(SA);
+            moves.insert(0, SA);
+            let current_count = moves.windows(2).into_iter().fold(0, |acc, vals| {
+                let s = vals[0];
+                let d = vals[1];
+                acc + count_moves(cur_level + 1, max_level, vec![s, d], cache)
+            });
+            if best_count.is_none() || best_count.unwrap() > current_count {
+                best_count = Some(current_count);
+            }
+        }
+        best_count.unwrap()
+    };
+
+    cache.insert((cur_level, path), count);
+    count
+}
+
+fn is_illegal_keypad_move(start: NumericKeypadState, moves: &Vec<RobotKeypadState>) -> bool {
+    match start {
+        NumS0 => moves.starts_with(&[SL]),
+        NumS1 => moves.starts_with(&[SD]),
+        NumS4 => moves.starts_with(&[SD, SD]),
+        NumS7 => moves.starts_with(&[SD, SD, SD]),
+        NumSA => moves.starts_with(&[SL, SL]),
+        _ => false,
+    }
+}
 
 use NumericKeypadState::*;
 use RobotKeypadState::*;
-
-impl DijkstraInput for Machine {
-    type Cost = i32;
-
-    type Index = (RobotKeypadState, RobotKeypadState, NumericKeypadState);
-
-    fn get_adjacent(&self, &(r1, r2, r3): &Self::Index) -> Vec<(Self::Cost, Self::Index)> {
-        let mut v = vec![];
-
-        if let Some((m, _)) = apply_move_robot_robot(RobotSUp, r1) {
-            v.push((1, (m, r2, r3)));
-        }
-        if let Some((m, _)) = apply_move_robot_robot(RobotSDown, r1) {
-            v.push((1, (m, r2, r3)));
-        }
-        if let Some((m, _)) = apply_move_robot_robot(RobotSLeft, r1) {
-            v.push((1, (m, r2, r3)));
-        }
-        if let Some((m, _)) = apply_move_robot_robot(RobotSRight, r1) {
-            v.push((1, (m, r2, r3)));
-        }
-        if let Some((_, true)) = apply_move_robot_robot(RobotSA, r1) {
-            if let Some((m, val)) = apply_move_robot_robot(r1, r2) {
-                if val {
-                    if let Some((m, val)) = apply_move_robot_keypad(r2, r3) {
-                        if val {
-                            // pass
-                        } else {
-                            v.push((1, (r1, r2, m)));
-                        }
-                    }
-                } else {
-                    v.push((1, (r1, m, r3)));
-                }
-            }
-        }
-
-        v
-    }
-}
-
-fn apply_move_robot_robot(
-    m: RobotKeypadState,
-    s: RobotKeypadState,
-) -> Option<(RobotKeypadState, bool)> {
-    macro_rules! ret {
-        ($ret:expr) => {
-            Some(($ret, false))
-        };
-    }
-
-    match m {
-        RobotSUp => match s {
-            RobotSDown => ret!(RobotSUp),
-            RobotSRight => ret!(RobotSA),
-            _ => None,
-        },
-        RobotSDown => match s {
-            RobotSUp => ret!(RobotSDown),
-            RobotSA => ret!(RobotSRight),
-            _ => None,
-        },
-        RobotSLeft => match s {
-            RobotSA => ret!(RobotSUp),
-            RobotSRight => ret!(RobotSDown),
-            RobotSDown => ret!(RobotSLeft),
-            _ => None,
-        },
-        RobotSRight => match s {
-            RobotSDown => ret!(RobotSRight),
-            RobotSUp => ret!(RobotSA),
-            RobotSLeft => ret!(RobotSDown),
-            _ => None,
-        },
-        RobotSA => Some((s, true)),
-    }
-}
-
-fn apply_move_robot_keypad(
-    m: RobotKeypadState,
-    s: NumericKeypadState,
-) -> Option<(NumericKeypadState, bool)> {
-    macro_rules! ret {
-        ($ret:expr) => {
-            Some(($ret, false))
-        };
-    }
-
-    match m {
-        RobotSUp => match s {
-            NumS0 => ret!(NumS2),
-            NumSA => ret!(NumS3),
-            NumS1 => ret!(NumS4),
-            NumS2 => ret!(NumS5),
-            NumS3 => ret!(NumS6),
-            NumS4 => ret!(NumS7),
-            NumS5 => ret!(NumS8),
-            NumS6 => ret!(NumS9),
-            _ => None,
-        },
-        RobotSDown => match s {
-            NumS7 => ret!(NumS4),
-            NumS8 => ret!(NumS5),
-            NumS9 => ret!(NumS6),
-            NumS4 => ret!(NumS1),
-            NumS5 => ret!(NumS2),
-            NumS6 => ret!(NumS3),
-            NumS2 => ret!(NumS0),
-            NumS3 => ret!(NumSA),
-            _ => None,
-        },
-        RobotSLeft => match s {
-            NumS8 => ret!(NumS7),
-            NumS5 => ret!(NumS4),
-            NumS2 => ret!(NumS1),
-            NumS9 => ret!(NumS8),
-            NumS6 => ret!(NumS5),
-            NumS3 => ret!(NumS2),
-            NumSA => ret!(NumS0),
-            _ => None,
-        },
-        RobotSRight => match s {
-            NumS7 => ret!(NumS8),
-            NumS4 => ret!(NumS5),
-            NumS1 => ret!(NumS2),
-            NumS8 => ret!(NumS9),
-            NumS5 => ret!(NumS6),
-            NumS2 => ret!(NumS3),
-            NumS0 => ret!(NumSA),
-            _ => None,
-        },
-        RobotSA => Some((s, true)),
-    }
-}
 
 fn main() -> Result<(), Error> {
     let data = read_data()?;
 
     dp!(data);
 
-    let mut prev = None;
+    let robot_count = 25;
 
+    let mut cache = HashMap::new();
     let mut total_count = 0;
     for combo in data.codes {
-        let factor = combo[0..3].parse::<i32>().unwrap();
+        let mut prev = NumSA;
+        let factor = combo[0..3].parse::<u64>().unwrap();
         let mut count = 0;
         for num in combo.chars() {
             let this_num = match num {
@@ -238,22 +338,45 @@ fn main() -> Result<(), Error> {
                 _ => unreachable!(),
             };
 
-            let start = if let Some(val) = prev { val } else { NumSA };
+            debug_println!("moving from {:?} to {:?}", prev, this_num);
+            let initial_robot_moves_orig = moves_keypad(prev, this_num);
+            let irmo_len = initial_robot_moves_orig.len();
+            let mut best_move_count = None;
+            for mut initial_robot_moves in
+                initial_robot_moves_orig.into_iter().permutations(irmo_len)
+            {
+                if is_illegal_keypad_move(prev, &initial_robot_moves) {
+                    continue;
+                }
+                initial_robot_moves.insert(0, SA);
+                initial_robot_moves.push(SA);
 
-            prev = Some(this_num);
+                dp!(initial_robot_moves);
 
-            let initial_state = (RobotSA, RobotSA, start);
+                let move_count = initial_robot_moves
+                    .windows(2)
+                    .into_iter()
+                    .fold(0, |acc, vals| {
+                        let s = vals[0];
+                        let d = vals[1];
+                        dp!(s);
+                        dp!(d);
 
-            let machine = Machine {};
-            let mut dmap =
-                DijkstraMap::<_, (RobotKeypadState, RobotKeypadState, NumericKeypadState)>::new(
-                    &machine,
-                    DijkstraConfig { print_1000: false },
-                );
-            let costs = dmap.run((0, initial_state));
-            let cost = costs[&(RobotSA, RobotSA, this_num)];
-            count += cost.0 + 1;
-            debug_println!("{:?}", count);
+                        let move_count = count_moves(1, robot_count, vec![s, d], &mut cache);
+                        dp!(move_count);
+                        acc + move_count
+                    });
+
+                dp!(move_count);
+
+                if best_move_count.is_none_or(|x| x > move_count) {
+                    best_move_count = Some(move_count);
+                }
+            }
+
+            prev = this_num;
+
+            count += best_move_count.unwrap();
         }
         debug_println!("{count}");
         let value = factor * count;
